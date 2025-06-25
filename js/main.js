@@ -37,8 +37,16 @@ function spawnEnemy() {
     }
 }
 
+let gameOverTriggered = false;
+
 function update() {
-    if (gameOver) return;
+    if (gameOver) {
+        if (!gameOverTriggered) {
+            saveHighScore(score);
+            gameOverTriggered = true;
+        }
+        return;
+    }
 
     // Player movement and shooting
     if (keys['ArrowLeft']) player.move('left');
@@ -202,12 +210,39 @@ function draw() {
     });
 
     if (gameOver) {
+        const newScoreIndex = gameOverTriggered ? getHighScores().findIndex(s => s.score === score) : -1;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center';
         ctx.font = '50px Arial';
-        ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40);
+        ctx.fillText('GAME OVER', GAME_WIDTH / 2, 100);
+
         ctx.font = '30px Arial';
-        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20);
+        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, 160);
+
+        ctx.font = '24px Arial';
+        ctx.fillText('High Scores', GAME_WIDTH / 2, 220);
+
+        const highScores = getHighScores();
+        ctx.font = '20px Arial';
+        highScores.forEach((highScore, index) => {
+            const y = 260 + index * 30;
+            const text = `${index + 1}. ${highScore.score}`;
+            if (index === newScoreIndex) {
+                ctx.fillStyle = '#ffff00'; // Highlight new high score
+            } else {
+                ctx.fillStyle = '#fff';
+            }
+            ctx.fillText(text, GAME_WIDTH / 2, y);
+        });
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '20px Arial';
+        ctx.fillText('Press F5 to play again', GAME_WIDTH / 2, GAME_HEIGHT - 50);
+
         return;
     }
 
