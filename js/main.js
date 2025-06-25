@@ -203,8 +203,11 @@ function draw() {
 
     if (gameOver) {
         ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
         ctx.font = '50px Arial';
-        ctx.fillText('GAME OVER', GAME_WIDTH / 2 - 150, GAME_HEIGHT / 2);
+        ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40);
+        ctx.font = '30px Arial';
+        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20);
         return;
     }
 
