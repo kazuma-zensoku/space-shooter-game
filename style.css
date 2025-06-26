@@ -1,9 +1,107 @@
 body {
-    background-color: #000;
+    background: #111;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Arial', sans-serif;
     color: #fff;
+}
+
+#game-container {
+    position: relative; /* For positioning the overlay */
+    width: 800px;
+    height: 600px;
+    border: 2px solid #fff;
+    overflow: hidden; /* This is the critical fix */
+}
+
+canvas {
+    background: #000;
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.menu-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     text-align: center;
 }
-canvas {
-    background-color: #111;
-    border: 1px solid #333;
+
+.menu-overlay.hidden {
+    display: none;
+}
+
+h1 {
+    font-size: 50px;
+    margin-bottom: 40px;
+    color: #00d9ff;
+    text-shadow: 0 0 10px #00d9ff;
+}
+
+h2 {
+    font-size: 30px;
+    margin-bottom: 20px;
+}
+
+h3 {
+    font-size: 24px;
+    margin-top: 30px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #fff;
+    padding-bottom: 5px;
+}
+
+button {
+    font-size: 20px;
+    padding: 10px 20px;
+    margin: 10px;
+    background: transparent;
+    border: 2px solid #fff;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+button:hover {
+    background: #fff;
+    color: #000;
+}
+
+input[type="number"] {
+    font-size: 18px;
+    padding: 10px;
+    width: 80%;
+    max-width: 250px;
+    text-align: center;
+    background: #333;
+    border: 1px solid #fff;
+    color: #fff;
+}
+
+#high-scores-list {
+    list-style: none;
+    padding: 0;
+    font-size: 18px;
+}
+
+#high-scores-list li {
+    margin: 5px 0;
+}
+
+#high-scores-list li.highlight {
+    color: #ffff00; /* Highlight new score */
+    font-weight: bold;
 }

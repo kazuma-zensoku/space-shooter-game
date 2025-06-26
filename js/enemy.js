@@ -20,8 +20,8 @@ class Enemy {
 
 class Boss {
     constructor(level) {
-        this.width = 200 + (level - 1) * 20;
-        this.height = 100 + (level - 1) * 10;
+        this.width = 200;
+        this.height = 100;
         this.x = (GAME_WIDTH - this.width) / 2;
         this.y = -this.height;
         this.speed = 1 + (level - 1) * 0.2;

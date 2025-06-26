@@ -1,8 +1,8 @@
 const player = new Player();
-const bullets = [];
-const enemyBullets = [];
-const enemies = [];
-const powerUps = [];
+let bullets = [];
+let enemyBullets = [];
+let enemies = [];
+let powerUps = [];
 const stars = [];
 let boss = null;
 
@@ -10,6 +10,49 @@ let keys = {};
 let shootCooldown = 0;
 let rapidFire = false;
 let rapidFireTimer = 0;
+
+// Game State
+let gameState = 'startMenu'; // 'startMenu', 'playing', 'gameOver', 'practiceMenu'
+let isPracticeMode = false;
+
+// Boss damage tracker for item drops
+let bossDamageSinceLastDrop = 0;
+
+// UI Elements
+const startMenu = document.getElementById('start-menu');
+const practiceMenu = document.getElementById('practice-menu');
+const gameOverMenu = document.getElementById('game-over-menu');
+const startGameBtn = document.getElementById('start-game-btn');
+const practiceModeBtn = document.getElementById('practice-mode-btn');
+const startPracticeBtn = document.getElementById('start-practice-btn');
+const levelInput = document.getElementById('level-input');
+const backBtns = document.querySelectorAll('.back-btn');
+const finalScoreEl = document.getElementById('final-score');
+const highScoresListEl = document.getElementById('high-scores-list');
+
+// --- Event Listeners ---
+startGameBtn.addEventListener('click', () => {
+    isPracticeMode = false;
+    startGame(1);
+});
+
+practiceModeBtn.addEventListener('click', () => {
+    gameState = 'practiceMenu';
+    updateMenuVisibility();
+});
+
+startPracticeBtn.addEventListener('click', () => {
+    isPracticeMode = true;
+    const level = parseInt(levelInput.value, 10) || 1;
+    startGame(level);
+});
+
+backBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        gameState = 'startMenu';
+        updateMenuVisibility();
+    });
+});
 
 // Starfield
 for (let i = 0; i < 100; i++) {
@@ -21,32 +64,88 @@ for (let i = 0; i < 100; i++) {
     });
 }
 
-document.addEventListener('keydown', (e) => {
-    keys[e.code] = true;
-});
-
-document.addEventListener('keyup', (e) => {
-    keys[e.code] = false;
-});
+document.addEventListener('keydown', (e) => { keys[e.code] = true; });
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 function spawnEnemy() {
-    if (!bossActive) {
+    if (gameState === 'playing' && !bossActive) {
         const x = Math.random() * (GAME_WIDTH - 50);
         const y = -30;
         enemies.push(new Enemy(x, y));
     }
 }
 
-let gameOverTriggered = false;
+function startGame(startLevel = 1) {
+    // Reset game state variables
+    score = 0;
+    playerHP = 100;
+    bossesDefeated = startLevel - 1;
+    scoreSinceLastBoss = 0;
+    bossActive = false;
+    boss = null;
+    bossHP = 0;
+    bossDamageSinceLastDrop = 0;
+    rapidFire = false;
+    rapidFireTimer = 0;
+    player.invincible = false;
+    player.invincibleTimer = 0;
+
+    // Clear arrays
+    bullets.length = 0;
+    enemies.length = 0;
+    enemyBullets.length = 0;
+    powerUps.length = 0;
+
+    // Reset player position
+    player.x = GAME_WIDTH / 2 - player.width / 2;
+    player.y = GAME_HEIGHT - player.height - 10;
+
+    gameState = 'playing';
+    updateMenuVisibility();
+}
+
+function handleGameOver() {
+    gameState = 'gameOver';
+    if (!isPracticeMode) {
+        saveHighScore(score);
+    }
+    finalScoreEl.textContent = `Your Score: ${score}`;
+    renderHighScores();
+    updateMenuVisibility();
+}
+
+function renderHighScores() {
+    const highScores = getHighScores();
+    highScoresListEl.innerHTML = ''; // Clear previous list
+    const newScoreIndex = isPracticeMode ? -1 : highScores.findIndex(s => s.score === score);
+
+    highScores.forEach((highScore, index) => {
+        const li = document.createElement('li');
+        li.textContent = `${index + 1}. ${highScore.score}`;
+        if (index === newScoreIndex) {
+            li.classList.add('highlight');
+        }
+        highScoresListEl.appendChild(li);
+    });
+}
+
+function updateMenuVisibility() {
+    startMenu.classList.add('hidden');
+    practiceMenu.classList.add('hidden');
+    gameOverMenu.classList.add('hidden');
+
+    if (gameState === 'startMenu') startMenu.classList.remove('hidden');
+    else if (gameState === 'practiceMenu') practiceMenu.classList.remove('hidden');
+    else if (gameState === 'gameOver') gameOverMenu.classList.remove('hidden');
+}
+
+// Helper function to check if an object is outside the game bounds
+function isOutOfBounds(obj) {
+    return obj.y > GAME_HEIGHT || obj.y < -obj.height || obj.x < -obj.width || obj.x > GAME_WIDTH;
+}
 
 function update() {
-    if (gameOver) {
-        if (!gameOverTriggered) {
-            saveHighScore(score);
-            gameOverTriggered = true;
-        }
-        return;
-    }
+    if (gameState !== 'playing') return;
 
     // Player movement and shooting
     if (keys['ArrowLeft']) player.move('left');
@@ -60,33 +159,69 @@ function update() {
     }
     if (shootCooldown > 0) shootCooldown--;
 
-    // Power-up timer
+    // Power-up timers
     if (rapidFireTimer > 0) rapidFireTimer--;
     else rapidFire = false;
+    if (player.invincibleTimer > 0) player.invincibleTimer--;
+    else player.invincible = false;
+
+    // Update and clean up arrays
+    bullets = bullets.filter(b => !isOutOfBounds(b));
+    enemyBullets = enemyBullets.filter(b => !isOutOfBounds(b));
+    enemies = enemies.filter(e => !isOutOfBounds(e));
+    powerUps = powerUps.filter(p => !isOutOfBounds(p));
 
     // Update player bullets
-    bullets.forEach((bullet, bulletIndex) => {
+    bullets.forEach((bullet) => {
         bullet.update();
-        if (bullet.y < 0) bullets.splice(bulletIndex, 1);
-
         // Collision with mobs
         enemies.forEach((enemy, enemyIndex) => {
             if (isColliding(bullet, enemy)) {
-                bullets.splice(bulletIndex, 1);
+                bullet.y = -100; // Mark for removal
+                const enemyX = enemy.x; // Store position before splicing
+                const enemyY = enemy.y;
                 enemies.splice(enemyIndex, 1);
+
                 const points = (bossesDefeated + 1) * 10;
                 score += points;
                 scoreSinceLastBoss += points;
+
+                // Mob item drop logic (15% chance)
                 if (Math.random() < 0.15) {
-                    powerUps.push(new PowerUp(enemy.x, enemy.y, 'rapidFire'));
+                    const itemPool = [
+                        'hp_10', 'hp_10', 'hp_10', 'hp_10', // HP 10 is common
+                        'hp_50', 'hp_50',                 // HP 50 is uncommon
+                        'rapidFire', 'rapidFire',         // Rapid Fire is also uncommon
+                        'hp_100',                        // HP 100 is rare
+                        'invincibility'                  // Invincibility is also rare
+                    ];
+                    const randomType = itemPool[Math.floor(Math.random() * itemPool.length)];
+                    powerUps.push(new PowerUp(enemyX, enemyY, randomType));
                 }
             }
         });
 
         // Collision with boss
         if (bossActive && boss && isColliding(bullet, boss)) {
-            bullets.splice(bulletIndex, 1);
-            bossHP -= 10;
+            bullet.y = -100; // Mark for removal
+            const damage = 10;
+            bossHP -= damage;
+            bossDamageSinceLastDrop += damage;
+
+            // Boss item drop logic with adjusted probabilities
+            if (bossDamageSinceLastDrop >= 150) {
+                bossDamageSinceLastDrop = 0;
+                const itemPool = [
+                    'hp_10', 'hp_10', 'hp_10', 'hp_10', // HP 10 is common
+                    'hp_50', 'hp_50',                 // HP 50 is uncommon
+                    'rapidFire', 'rapidFire',         // Rapid Fire is also uncommon
+                    'hp_100',                        // HP 100 is rare
+                    'invincibility'                  // Invincibility is also rare
+                ];
+                const randomType = itemPool[Math.floor(Math.random() * itemPool.length)];
+                powerUps.push(new PowerUp(boss.x + boss.width / 2, boss.y + boss.height / 2, randomType));
+            }
+
             if (bossHP <= 0) {
                 score += 1000 * (bossesDefeated + 1);
                 bossesDefeated++;
@@ -98,67 +233,70 @@ function update() {
     });
 
     // Update power-ups
-    powerUps.forEach((powerUp, index) => {
+    powerUps.forEach((powerUp) => {
         powerUp.update();
-        if (powerUp.y > GAME_HEIGHT) powerUps.splice(index, 1);
         if (isColliding(player, powerUp)) {
-            powerUps.splice(index, 1);
+            powerUp.y = GAME_HEIGHT + 100; // Mark for removal
             if (powerUp.type === 'rapidFire') {
                 rapidFire = true;
-                rapidFireTimer = 300;
+                rapidFireTimer = 300; // 5 seconds
+            } else if (powerUp.type === 'invincibility') {
+                player.invincible = true;
+                player.invincibleTimer = 600; // 10 seconds
+            } else if (powerUp.type === 'hp_10') {
+                playerHP = Math.min(100, playerHP + 10);
+            } else if (powerUp.type === 'hp_50') {
+                playerHP = Math.min(100, playerHP + 50);
+            } else if (powerUp.type === 'hp_100') {
+                playerHP = 100;
             }
         }
     });
 
     // Update enemy bullets
-    enemyBullets.forEach((bullet, bulletIndex) => {
+    enemyBullets.forEach((bullet) => {
         bullet.update();
-        if (bullet.y > GAME_HEIGHT || bullet.y < 0 || bullet.x < 0 || bullet.x > GAME_WIDTH) {
-            enemyBullets.splice(bulletIndex, 1);
-        }
-        if (isColliding(player, bullet)) {
-            enemyBullets.splice(bulletIndex, 1);
+        if (isColliding(player, bullet) && !player.invincible) {
+            bullet.y = GAME_HEIGHT + 100; // Mark for removal
             playerHP -= 10;
-            if (playerHP <= 0) gameOver = true;
+            if (playerHP <= 0) handleGameOver();
         }
     });
 
     // Update enemies
-    enemies.forEach((enemy, enemyIndex) => {
+    enemies.forEach((enemy) => {
         enemy.update();
-        if (enemy.y > GAME_HEIGHT) enemies.splice(enemyIndex, 1);
-
-        // Mob shooting logic
-        if (Math.random() < 0.01 + (bossesDefeated * 0.005)) { // Firing rate increases with levels
+        // Mob shooting logic - only shoot if on screen
+        if (enemy.y > 0 && Math.random() < 0.01 + (bossesDefeated * 0.005)) {
             const bulletSpeed = 4 + bossesDefeated * 0.2;
-            const directions = Math.min(bossesDefeated + 1, 5); // Cap directions at 5
-            
+            const directions = Math.min(bossesDefeated + 1, 5);
             if (directions === 1) {
                 enemyBullets.push(new EnemyBullet(enemy.x + enemy.width / 2, enemy.y + enemy.height, 0, 1, bulletSpeed));
             } else {
                 for (let i = 0; i < directions; i++) {
-                    const angle = (i / (directions - 1) - 0.5) * 0.5; // Spread from -0.25 to 0.25 rad
+                    const angle = (i / (directions - 1) - 0.5) * 0.5;
                     enemyBullets.push(new EnemyBullet(enemy.x + enemy.width / 2, enemy.y + enemy.height, Math.sin(angle), Math.cos(angle), bulletSpeed));
                 }
             }
         }
 
-        if (isColliding(player, enemy)) {
-            enemies.splice(enemyIndex, 1);
+        if (isColliding(player, enemy) && !player.invincible) {
+            enemy.y = GAME_HEIGHT + 100; // Mark for removal
             playerHP -= 20;
-            if (playerHP <= 0) gameOver = true;
+            if (playerHP <= 0) handleGameOver();
         }
     });
 
     // Boss spawning logic
     if (!bossActive) {
         const mobScoreValue = (bossesDefeated + 1) * 10;
-        const scoreThreshold = 30 * mobScoreValue; // Approx. 30 mob kills
+        const scoreThreshold = 30 * mobScoreValue;
         if (scoreSinceLastBoss >= scoreThreshold) {
             const bossLevel = bossesDefeated + 1;
             bossActive = true;
             boss = new Boss(bossLevel);
             bossHP = 500 + (bossLevel - 1) * 300;
+            bossDamageSinceLastDrop = 0;
         }
     }
 
@@ -167,14 +305,10 @@ function update() {
         boss.update();
         const bulletSpeed = 4 + boss.level * 0.3;
         const fireRate = 0.03 + boss.level * 0.02;
-
-        // Main rotating attack
         if (Math.random() < fireRate) {
             const angle = boss.angle + (Math.random() - 0.5) * (Math.PI / 4);
             enemyBullets.push(new EnemyBullet(boss.x + boss.width / 2, boss.y + boss.height / 2, Math.cos(angle), Math.sin(angle), bulletSpeed));
         }
-
-        // Radial burst attack, density increases with level
         const radialAttackRate = 0.01 + boss.level * 0.005;
         if (boss.level > 1 && Math.random() < radialAttackRate) {
             const bulletsInBurst = 8 + Math.floor(boss.level * 1.5);
@@ -209,42 +343,7 @@ function draw() {
         ctx.fillRect(star.x, star.y, star.radius, star.radius);
     });
 
-    if (gameOver) {
-        const newScoreIndex = gameOverTriggered ? getHighScores().findIndex(s => s.score === score) : -1;
-
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.font = '50px Arial';
-        ctx.fillText('GAME OVER', GAME_WIDTH / 2, 100);
-
-        ctx.font = '30px Arial';
-        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, 160);
-
-        ctx.font = '24px Arial';
-        ctx.fillText('High Scores', GAME_WIDTH / 2, 220);
-
-        const highScores = getHighScores();
-        ctx.font = '20px Arial';
-        highScores.forEach((highScore, index) => {
-            const y = 260 + index * 30;
-            const text = `${index + 1}. ${highScore.score}`;
-            if (index === newScoreIndex) {
-                ctx.fillStyle = '#ffff00'; // Highlight new high score
-            } else {
-                ctx.fillStyle = '#fff';
-            }
-            ctx.fillText(text, GAME_WIDTH / 2, y);
-        });
-
-        ctx.fillStyle = '#fff';
-        ctx.font = '20px Arial';
-        ctx.fillText('Press F5 to play again', GAME_WIDTH / 2, GAME_HEIGHT - 50);
-
-        return;
-    }
+    if (gameState !== 'playing') return; // Don't draw game elements if not playing
 
     player.draw();
     bullets.forEach(b => b.draw());
@@ -258,6 +357,7 @@ function draw() {
     ctx.fillText(`Score: ${score}`, 10, 20);
     ctx.fillText(`HP: ${playerHP}`, 10, 50);
     if (rapidFire) ctx.fillText('Rapid Fire!', 10, 80);
+    if (player.invincible) ctx.fillText(`Invincible: ${Math.ceil(player.invincibleTimer / 60)}s`, 10, 110);
     if (bossActive) ctx.fillText(`Boss Level: ${boss.level}`, GAME_WIDTH - 150, 20);
 }
 
@@ -267,5 +367,7 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
+// Initial setup
+updateMenuVisibility();
 setInterval(spawnEnemy, 667);
 gameLoop();
